@@ -1,8 +1,9 @@
 ###
 I want a pony: 
 
-- use git to figure out a recipe's author and contributors
-- process links to figure out recipe relationships
+[ ] use github to figure out a recipe's author and contributors
+[ ] output aggregations: vegan, vegetarian, protein type, meat type, category, everything
+[ ] process links to figure out recipe relationships
 ###
 
 _ = require 'underscore'
@@ -14,6 +15,15 @@ async = require 'async'
 cheerio = require 'cheerio'
 {markdown} = require 'markdown'
 toHTML = _.bind markdown.toHTML, markdown
+
+categories =
+    layers: 'base_layers'
+    tacos: 'full_tacos'
+    more: 'like_tacos'
+    condiments: 'condiments'
+    mixins: 'mixins'
+    seasonings: 'seasonings'
+    shells: 'shells'
 
 meats = [
     'beef'
@@ -33,15 +43,38 @@ protein = [
     'tofurky'
     ]
 
+github = 'https://api.github.com/repos/sinker/tacofancy/commits'
+getContributors = (path, callback) ->
+    params =
+        uri: github
+        qs: {path}
+        json: yes
+    request.get params, (err, res, commits) ->
+        if err then return callback err
+
+        contributors = commits.map (commit) ->
+            contributor =
+                name: commit.commit.author.name
+                username: commit.author.login
+        contributors = _.unique contributors, no, _.property 'username'
+        author = _.last contributors
+
+        callback null, author, contributors
+
 behaved = (fn) ->
     (first) ->
         fn first
 
 download = (callback) ->
-    if fs.existsSync 'tacofancy'
-        callback null
-    else
-        exec 'make tacofancy', callback
+    fs.exists 'tacofancy', (exists) ->
+        if exists
+            callback null
+        else
+            exec 'make tacofancy', (err) ->
+                callback err
+
+setup = (callback) ->
+    fs.mkdirp 'data', behaved callback
 
 read = (segments...) ->
     segments = segments.filter _.isString
@@ -68,18 +101,13 @@ extract = ($) ->
         vegan: _.str.contains lastLine, 'vegan'
         name: $('h1').text() or null
 
-async.series [download], (err) ->
-    # TODO:
-    # - base_layers
-    # - condiments
-    # - full_tacos
-    # - like_tacos
-    # - mixins
-    # - seasonings
-    # - shells
-    root = 'tacofancy/base_layers'
+processCategory = (category) ->
+    console.log "Figuring out the #{category} situation."
 
+    root = fs.path.join 'tacofancy', category
     paths = fs.readdirSync root
+        .filter (path) ->
+            (fs.path.extname path) is '.md'
         .filter (path) -> not _.str.contains path, 'README'
 
     slugs = paths
@@ -99,14 +127,23 @@ async.series [download], (err) ->
 
     data = _.zip slugs, markdown, html, metadata
         .map ([slug, markdown, html, metadata]) ->
-            _.extend metadata, {slug, markdown, html}
+            _.extend metadata, 
+                {slug, markdown, html, category: categories[category]}
 
-    serialized = JSON.stringify data, undefined, 2
+    data
 
-    fs.mkdirp.sync 'data'
-    fs.writeFileSync 'data/recipes.json', serialized, encoding: 'utf8'
+processRecipes = (callback) ->
+    recipes = (_.values categories).map processCategory
+    categorizedRecipes = _.object _.zip (_.keys categories), recipes
+    callback null, categorizedRecipes
 
+saveRecipes = (recipes, callback) ->
+    serialized = JSON.stringify recipes, undefined, 2
+    fs.writeFile 'data/all.json', serialized, 
+        {encoding: 'utf8'}, callback
+
+async.waterfall [download, setup, processRecipes, saveRecipes], (err) ->
     console.log 'Robot-readable recipes ready!'
 
-if process.argv[2] isnt 'local'
-    exec 'zip, sync ./data to s3'
+    if process.argv[2] isnt 'local'
+        exec 'zip, sync ./data to s3'
