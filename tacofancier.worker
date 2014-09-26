@@ -1,0 +1,5 @@
+runtime "node"
+pip "awscli"
+dir "node_modules"
+file "package.json"
+exec "tacofancier.js"
