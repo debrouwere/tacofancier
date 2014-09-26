@@ -28,9 +28,9 @@ AWS.config.update {
 s3 = new AWS.S3()
 
 categories =
-    layers: 'base_layers'
-    tacos: 'full_tacos'
-    more: 'like_tacos'
+    base_layers: 'layers'
+    full_tacos: 'tacos'
+    like_tacos: 'more'
     condiments: 'condiments'
     mixins: 'mixins'
     seasonings: 'seasonings'
@@ -163,9 +163,9 @@ processCategory = (category, callback) ->
         callback null, data
 
 processRecipes = (callback) ->
-    async.map (_.values categories), processCategory, (err, recipes) ->
+    async.map (_.keys categories), processCategory, (err, recipes) ->
         if err then return callback err
-        categorizedRecipes = _.object _.zip (_.keys categories), recipes
+        categorizedRecipes = _.object _.zip (_.values categories), recipes
         callback null, categorizedRecipes
 
 writeRecipes = (recipes, callback) ->

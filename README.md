@@ -8,12 +8,12 @@ The current code, as-is, produces an [all.json](https://s3.amazonaws.com/tacofan
 
 Still have to split out the data into various useful subsets though, like all vegetarian recipes, all the different categories et cetera.
 
-[x] collect all recipes, process them, but 'em in a big JSON file
-[x] use github to figure out each recipe's author and contributors
-[x] run Tacofancier on [IronWorker](http://www.iron.io/worker) and upload to [S3](http://aws.amazon.com/s3)
-[ ] output aggregations: vegan, vegetarian, protein type, meat type, category, everything
-[ ] individual recipe output in JSON and YAML
-[ ] process links to figure out recipe relationships
+- [x] collect all recipes, process them, but 'em in a big JSON file
+- [x] use github to figure out each recipe's author and contributors
+- [x] run Tacofancier on [IronWorker](http://www.iron.io/worker) and upload to [S3](http://aws.amazon.com/s3)
+- [ ] output aggregations: vegan, vegetarian, protein type, meat type, category, everything
+- [ ] individual recipe output in JSON and YAML
+- [ ] process links to figure out recipe relationships
 
 ### Why?
 

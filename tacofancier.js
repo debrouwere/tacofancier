@@ -45,9 +45,9 @@
   s3 = new AWS.S3();
 
   categories = {
-    layers: 'base_layers',
-    tacos: 'full_tacos',
-    more: 'like_tacos',
+    base_layers: 'layers',
+    full_tacos: 'tacos',
+    like_tacos: 'more',
     condiments: 'condiments',
     mixins: 'mixins',
     seasonings: 'seasonings',
@@ -192,12 +192,12 @@
   };
 
   processRecipes = function(callback) {
-    return async.map(_.values(categories), processCategory, function(err, recipes) {
+    return async.map(_.keys(categories), processCategory, function(err, recipes) {
       var categorizedRecipes;
       if (err) {
         return callback(err);
       }
-      categorizedRecipes = _.object(_.zip(_.keys(categories), recipes));
+      categorizedRecipes = _.object(_.zip(_.values(categories), recipes));
       return callback(null, categorizedRecipes);
     });
   };
