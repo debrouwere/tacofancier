@@ -5,16 +5,21 @@ tacofancier.js: tacofancier.coffee
 
 tacofancy:
 	rm -rf tacofancy
-	wget https://github.com/sinker/tacofancy/archive/master.zip
-	unzip master.zip
+	curl -O https://codeload.github.com/sinker/tacofancy/zip/master
+	unzip master
 	mv tacofancy-master tacofancy
-	rm master.zip
+	rm master
 
 data: tacofancier.js tacofancy
 	node tacofancier.js local
 
-upload:
-	iron_worker upload --worker-config env.yml
+schedule:
+	iron_worker schedule tacofancier --run-every 3600
+
+upload: tacofancier.js tacofancier.worker env.yml
+	yaml2json env.yml > env.json
+	iron_worker upload tacofancier.worker \
+		--worker-config env.json
 
 clean:
 	rm -rf build

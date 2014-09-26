@@ -53,4 +53,5 @@ tacofancy
 data
 
 # secret environment variables
-env.yml
+iron.json
+env.*

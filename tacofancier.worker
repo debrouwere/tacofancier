@@ -1,5 +1,6 @@
 runtime "node"
-pip "awscli"
+stack "node-0.10"
 dir "node_modules"
+file "Makefile"
 file "package.json"
 exec "tacofancier.js"

@@ -1,20 +1,31 @@
-###
-I want a pony: 
-
-[ ] use github to figure out a recipe's author and contributors
-[ ] output aggregations: vegan, vegetarian, protein type, meat type, category, everything
-[ ] process links to figure out recipe relationships
-###
-
 _ = require 'underscore'
 _.str = require 'underscore.string'
 fs = require 'fs'
 fs.path = require 'path'
 fs.mkdirp = require 'mkdirp'
+{exec} = require 'child_process'
 async = require 'async'
+request = require 'request'
 cheerio = require 'cheerio'
 {markdown} = require 'markdown'
 toHTML = _.bind markdown.toHTML, markdown
+AWS = require 'aws-sdk'
+
+context = if process.argv[2] is 'local' then 'local' else 'remote'
+
+if context is 'local'
+    env = process.env
+else
+    worker = require 'ironworker-helper'
+    env = worker.config
+
+AWS.config.update {
+    accessKeyId: env.AWS_ACCESS_KEY_ID
+    secretAccessKey: env.AWS_SECRET_ACCESS_KEY
+    region: 'us-east-1'
+    }
+
+s3 = new AWS.S3()
 
 categories =
     layers: 'base_layers'
@@ -43,23 +54,34 @@ protein = [
     'tofurky'
     ]
 
-github = 'https://api.github.com/repos/sinker/tacofancy/commits'
+github = 'https://api.github.com/repos/sinker/tacofancy/commits?'
 getContributors = (path, callback) ->
+    options =
+        path: path
+        client_id: process.env.GITHUB_CLIENT_ID
+        client_secret: process.env.GITHUB_CLIENT_SECRET
+
+    # GitHub doesn't like escaped querystrings, so we roll our own
+    kvs = _.map options, (value, key) ->
+        "#{key}=#{value}"
+    qs = kvs.join '&'
+
     params =
-        uri: github
-        qs: {path}
+        headers:
+            'user-agent': 'stdbrouw/tacofancier'
+        uri: github + qs
         json: yes
     request.get params, (err, res, commits) ->
-        if err then return callback err
+        if err or res.statusCode isnt 200 then return callback err
 
         contributors = commits.map (commit) ->
             contributor =
                 name: commit.commit.author.name
-                username: commit.author.login
+                username: commit.author?.login
         contributors = _.unique contributors, no, _.property 'username'
         author = _.last contributors
 
-        callback null, author, contributors
+        callback null, {author, contributors}
 
 behaved = (fn) ->
     (first) ->
@@ -101,21 +123,26 @@ extract = ($) ->
         vegan: _.str.contains lastLine, 'vegan'
         name: $('h1').text() or null
 
-processCategory = (category) ->
+processCategory = (category, callback) ->
     console.log "Figuring out the #{category} situation."
 
-    root = fs.path.join 'tacofancy', category
-    paths = fs.readdirSync root
+    fileRoot = fs.path.join 'tacofancy', category
+    repoRoot = category
+
+    paths = fs.readdirSync fileRoot
         .filter (path) ->
             (fs.path.extname path) is '.md'
         .filter (path) -> not _.str.contains path, 'README'
+
+    repoPaths = paths.map (path) ->
+        fs.path.join repoRoot, path
 
     slugs = paths
         .map (path) -> path.slice 0, -3
         .map _.str.dasherize
 
     markdown = paths
-        .map _.partial read, root
+        .map _.partial read, fileRoot
 
     # TODO: rewrite links
     html = markdown
@@ -125,25 +152,37 @@ processCategory = (category) ->
         .map behaved cheerio.load
         .map extract
 
-    data = _.zip slugs, markdown, html, metadata
-        .map ([slug, markdown, html, metadata]) ->
-            _.extend metadata, 
-                {slug, markdown, html, category: categories[category]}
+    async.mapSeries repoPaths, getContributors, (err, authorship) ->
+        if err then return callback err
 
-    data
+        data = _.zip paths, slugs, markdown, html, metadata, authorship
+            .map ([path, slug, markdown, html, metadata, authorship]) ->
+                _.extend metadata, authorship, 
+                    {path, slug, markdown, html, category: categories[category]}
+
+        callback null, data
 
 processRecipes = (callback) ->
-    recipes = (_.values categories).map processCategory
-    categorizedRecipes = _.object _.zip (_.keys categories), recipes
-    callback null, categorizedRecipes
+    async.map (_.values categories), processCategory, (err, recipes) ->
+        if err then return callback err
+        categorizedRecipes = _.object _.zip (_.keys categories), recipes
+        callback null, categorizedRecipes
 
-saveRecipes = (recipes, callback) ->
+writeRecipes = (recipes, callback) ->
     serialized = JSON.stringify recipes, undefined, 2
-    fs.writeFile 'data/all.json', serialized, 
-        {encoding: 'utf8'}, callback
 
-async.waterfall [download, setup, processRecipes, saveRecipes], (err) ->
-    console.log 'Robot-readable recipes ready!'
+    if context is 'local'
+        fs.writeFile 'data/all.json', serialized, {encoding: 'utf8'}, callback
+    else
+        params =
+            Bucket: env.AWS_S3_BUCKET_NAME
+            Key: 'all.json'
+            Body: serialized
+        s3.putObject params, callback
 
-    if process.argv[2] isnt 'local'
-        exec 'zip, sync ./data to s3'
+async.waterfall [download, setup, processRecipes, writeRecipes], (err, recipes) ->
+    if err
+        console.log err.message
+        throw new Error err.message
+    else
+        console.log 'Robot-readable recipes ready!'
