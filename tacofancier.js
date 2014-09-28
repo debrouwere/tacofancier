@@ -140,16 +140,18 @@
   };
 
   extract = function($) {
-    var lastLine, metadata, words;
+    var ingredients, lastLine, metadata, words;
     words = extractWords($);
     lastLine = $('p').last().text();
-    return metadata = {
+    ingredients = {
       meats: _.intersection(meats, words),
-      protein: _.intersection(protein, words),
-      vegetarian: (_.str.contains(lastLine, 'vegetarian')) || protein.length > 0,
+      protein: _.intersection(protein, words)
+    };
+    return metadata = _.extend(ingredients, {
+      vegetarian: (_.str.contains(lastLine, 'vegetarian')) || ingredients.protein.length > 0,
       vegan: _.str.contains(lastLine, 'vegan'),
       name: $('h1').text() || null
-    };
+    });
   };
 
   processCategory = function(category, callback) {

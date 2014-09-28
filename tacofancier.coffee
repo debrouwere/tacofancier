@@ -114,12 +114,14 @@ extractWords = (dom) ->
             
 extract = ($) ->
     words = extractWords $
-
     lastLine = $('p').last().text()
-    metadata =
+
+    ingredients =
         meats: _.intersection meats, words
         protein: _.intersection protein, words
-        vegetarian: (_.str.contains lastLine, 'vegetarian') or protein.length > 0
+
+    metadata = _.extend ingredients, 
+        vegetarian: (_.str.contains lastLine, 'vegetarian') or ingredients.protein.length > 0
         vegan: _.str.contains lastLine, 'vegan'
         name: $('h1').text() or null
 
