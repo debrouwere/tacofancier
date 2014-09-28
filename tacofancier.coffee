@@ -124,15 +124,14 @@ extract = ($) ->
         name: $('h1').text() or null
 
 processCategory = (category, callback) ->
-    console.log "Figuring out the #{category} situation."
-
-    fileRoot = fs.path.join 'tacofancy', category
     repoRoot = category
+    fileRoot = fs.path.join 'tacofancy', category
 
     paths = fs.readdirSync fileRoot
         .filter (path) ->
             (fs.path.extname path) is '.md'
-        .filter (path) -> not _.str.contains path, 'README'
+        .filter (path) ->
+            not _.str.contains path, 'README'
 
     repoPaths = paths.map (path) ->
         fs.path.join repoRoot, path
@@ -141,11 +140,11 @@ processCategory = (category, callback) ->
         .map (path) -> path.slice 0, -3
         .map _.str.dasherize
 
-    markdown = paths
+    markup = paths
         .map _.partial read, fileRoot
 
     # TODO: rewrite links
-    html = markdown
+    html = markup
         .map behaved toHTML
 
     metadata = html
@@ -155,11 +154,12 @@ processCategory = (category, callback) ->
     async.mapSeries repoPaths, getContributors, (err, authorship) ->
         if err then return callback err
 
-        data = _.zip paths, slugs, markdown, html, metadata, authorship
+        data = _.zip paths, slugs, markup, html, metadata, authorship
             .map ([path, slug, markdown, html, metadata, authorship]) ->
                 _.extend metadata, authorship, 
                     {path, slug, markdown, html, category: categories[category]}
 
+        console.log "Figured out the #{category} situation."
         callback null, data
 
 processRecipes = (callback) ->

@@ -153,10 +153,9 @@
   };
 
   processCategory = function(category, callback) {
-    var fileRoot, html, metadata, paths, repoPaths, repoRoot, slugs;
-    console.log("Figuring out the " + category + " situation.");
-    fileRoot = fs.path.join('tacofancy', category);
+    var fileRoot, html, markup, metadata, paths, repoPaths, repoRoot, slugs;
     repoRoot = category;
+    fileRoot = fs.path.join('tacofancy', category);
     paths = fs.readdirSync(fileRoot).filter(function(path) {
       return (fs.path.extname(path)) === '.md';
     }).filter(function(path) {
@@ -168,15 +167,15 @@
     slugs = paths.map(function(path) {
       return path.slice(0, -3);
     }).map(_.str.dasherize);
-    markdown = paths.map(_.partial(read, fileRoot));
-    html = markdown.map(behaved(toHTML));
+    markup = paths.map(_.partial(read, fileRoot));
+    html = markup.map(behaved(toHTML));
     metadata = html.map(behaved(cheerio.load)).map(extract);
     return async.mapSeries(repoPaths, getContributors, function(err, authorship) {
       var data;
       if (err) {
         return callback(err);
       }
-      data = _.zip(paths, slugs, markdown, html, metadata, authorship).map(function(_arg) {
+      data = _.zip(paths, slugs, markup, html, metadata, authorship).map(function(_arg) {
         var authorship, html, markdown, metadata, path, slug;
         path = _arg[0], slug = _arg[1], markdown = _arg[2], html = _arg[3], metadata = _arg[4], authorship = _arg[5];
         return _.extend(metadata, authorship, {
@@ -187,6 +186,7 @@
           category: categories[category]
         });
       });
+      console.log("Figured out the " + category + " situation.");
       return callback(null, data);
     });
   };
